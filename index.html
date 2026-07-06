@@ -8,7 +8,7 @@
 <style>
 /* ============================================================
    씨앗토크 — 공감 씨앗 카드게임 🌱🌼 (주제 자유 설정)
-   · 카드 15장: 테이블 6장 오픈 + 나머지는 덱
+   · 카드 여러 장: 테이블 6장 오픈 + 나머지는 덱 (CARD_COUNT로 조절)
    · 자기 차례에 1장 선택 → 발표(오프라인) → 다음 차례로 → 덱에서 리필
    · 공감 씨앗 3개: 한 발표당 1개까지, 남기면 시들어요
    · 마지막 꽃 피우기: 받은 씨앗마다 랜덤 1~3송이 데이지, 최다 송이 우승
@@ -277,41 +277,31 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
    ★ FIREBASE_CONFIG ★ — 여기에 본인 설정을 붙여넣으세요!
    ════════════════════════════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAqnBE_0A3biefkxq3xMXYLUIIq8RJB9Ws",
-  authDomain: "gen-lang-client-0258122921.firebaseapp.com",
-  databaseURL: "https://gen-lang-client-0258122921-default-rtdb.firebaseio.com",
-  projectId: "gen-lang-client-0258122921",
-  storageBucket: "gen-lang-client-0258122921.firebasestorage.app",
-  messagingSenderId: "850202732445",
-  appId: "1:850202732445:web:aac08a3e53451c3ec2f174"
+  apiKey: "여기에_붙여넣기",
+  authDomain: "여기에_붙여넣기",
+  databaseURL: "여기에_붙여넣기",   // ← 이 줄이 꼭 필요해요!
+  projectId: "여기에_붙여넣기",
+  storageBucket: "여기에_붙여넣기",
+  messagingSenderId: "여기에_붙여넣기",
+  appId: "여기에_붙여넣기"
 };
 
 /* ════════════════════════════════════════════════════════════
-   ★ 이미지 카드 15장 ★ — image01~image15 파일을 저장소에 올리면 자동 연결
+   ★ 이미지 카드 ★ — CARD_COUNT 장수만큼 image 파일 자동 연결
    · 모두 1:1 정사각형 자동 크롭 · 그림이 없으면 이모지 표시
    ════════════════════════════════════════════════════════════ */
-const IMG_EXT = "png";   /* ← 그림 확장자. jpg 파일이면 "jpg" 로 바꾸세요 */
-const CARDS = [
-  { id:"c01", label:"",  emo:"🪞" },
-  { id:"c02", label:"",  emo:"🧭" },
-  { id:"c03", label:"",  emo:"🌱" },
-  { id:"c04", label:"",  emo:"🌉" },
-  { id:"c05", label:"",  emo:"📏" },
-  { id:"c06", label:"",  emo:"🗺️" },
-  { id:"c07", label:"",  emo:"🔦" },
-  { id:"c08", label:"",  emo:"⚖️" },
-  { id:"c09", label:"",  emo:"🎁" },
-  { id:"c10", label:"",  emo:"🚦" },
-  { id:"c11", label:"",  emo:"📸" },
-  { id:"c12", label:"",  emo:"🚪" },
-  { id:"c13", label:"",  emo:"🪜" },
-  { id:"c14", label:"",  emo:"🔍" },
-  { id:"c15", label:"",  emo:"🔑" },
-];
-/* 그림 파일명 자동 연결: image01 ~ image15 (같은 저장소에 올리면 끝!)
-   · 그림이 아직 없으면 이모지가 대신 보여요
-   · 카드에 이름을 붙이고 싶으면 위의 label:"" 안에 적으세요 (비우면 이름표 없음) */
-CARDS.forEach((c,i)=>{ c.img = "image" + String(i+1).padStart(2,"0") + "." + IMG_EXT; });
+const IMG_EXT = "png";     /* ← 그림 확장자. jpg 파일이면 "jpg" 로 */
+const CARD_COUNT = 48;     /* ← 카드 장수. 그림을 더/덜 올리면 이 숫자만 바꾸세요 */
+/* image (1).png ~ image (48).png 파일을 저장소에 올리면 자동 연결됩니다.
+   "image (1)" (띄어쓰기 O), "image(1)" (띄어쓰기 X) 둘 다 알아서 인식해요.
+   그림이 아직 없는 카드는 이모지가 대신 표시돼요. */
+const EMOJI_POOL=["🪞","🧭","🌱","🌉","📏","🗺️","🔦","⚖️","🎁","🚦","📸","🚪","🪜","🔍","🔑","⏳","🌈","🕯️","🧩","☂️","🔥","⭐","🎯","🌊"];
+const CARDS=[...Array(CARD_COUNT)].map((_,i)=>({
+  id:"c"+String(i+1).padStart(2,"0"),
+  label:"", emo:EMOJI_POOL[i%EMOJI_POOL.length],
+  img:"image ("+(i+1)+")."+IMG_EXT,
+  img2:"image("+(i+1)+")."+IMG_EXT
+}));
 
 const TABLE_SIZE = 6;   /* 처음에 펼쳐지는 카드 수 */
 const SEEDS     = 3;    /* 1인당 공감 씨앗 수 */
@@ -336,7 +326,8 @@ function iran(w){ /* 받침 자동: 평가란 / 수업이란 */
 }
 function faceHTML(c,withLabel=true){
   if(!c) return `<div class="cardface empty"></div>`;
-  const img=c.img?`<img src="${esc(c.img)}" alt="" onerror="this.remove()">`:'';
+  const img=c.img?`<img src="${esc(c.img)}" data-alt="${esc(c.img2||'')}" alt=""
+    onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.removeAttribute('data-alt')}else{this.remove()}">`:'';
   const lbl=(withLabel&&c.label)?`<div class="lbl">${esc(c.label)}</div>`:'';
   return `<div class="cardface"><div class="emo">${c.emo}</div>${img}${lbl}</div>`;
 }

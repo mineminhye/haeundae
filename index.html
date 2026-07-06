@@ -101,8 +101,14 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
 .spotCard{position:relative;background:#fff;border-radius:22px;padding:1rem;
   border:3px solid var(--coral);box-shadow:0 6px 0 rgba(226,89,59,.18);
   animation:fadeIn .3s ease;margin-bottom:1.1rem;}
-.spotTop{display:flex;gap:1rem;align-items:flex-start;}
-.spotTop .cardface{width:38%;flex:none;}
+.spotBig{margin:.3rem 0 .7rem;cursor:zoom-in;}
+.spotBig .cardface{border-radius:18px;}
+#lightbox{position:fixed;inset:0;z-index:200;background:rgba(20,26,16,.9);
+  display:none;align-items:center;justify-content:center;padding:1rem;cursor:zoom-out;}
+#lightbox.on{display:flex;animation:fadeIn .2s ease;}
+#lightbox .cardface{width:min(92vw,80vh);border-radius:22px;}
+#lightbox .hint{position:absolute;bottom:1.2rem;left:0;right:0;text-align:center;
+  color:#fff;font-family:'Jua';font-size:.85rem;opacity:.8;}
 .spotName{font-family:'Jua';font-size:1rem;color:var(--coral);}
 .spotDef{font-size:1.2rem;line-height:1.45;margin-top:.2rem;}
 .nowTag{position:absolute;top:-1rem;left:1rem;background:var(--coral);color:#fff;
@@ -268,6 +274,11 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
   </div>
 </div>
 
+<div id="lightbox" onclick="this.classList.remove('on')">
+  <div id="lbInner" style="width:min(92vw,80vh)"></div>
+  <div class="hint">화면을 누르면 돌아가요</div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -277,13 +288,13 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
    ★ FIREBASE_CONFIG ★ — 여기에 본인 설정을 붙여넣으세요!
    ════════════════════════════════════════════════════════════ */
 const FIREBASE_CONFIG = {
-  apiKey: "여기에_붙여넣기",
-  authDomain: "여기에_붙여넣기",
-  databaseURL: "여기에_붙여넣기",   // ← 이 줄이 꼭 필요해요!
-  projectId: "여기에_붙여넣기",
-  storageBucket: "여기에_붙여넣기",
-  messagingSenderId: "여기에_붙여넣기",
-  appId: "여기에_붙여넣기"
+  apiKey: "AIzaSyAqnBE_0A3biefkxq3xMXYLUIIq8RJB9Ws",
+  authDomain: "gen-lang-client-0258122921.firebaseapp.com",
+  databaseURL: "https://gen-lang-client-0258122921-default-rtdb.firebaseio.com",
+  projectId: "gen-lang-client-0258122921",
+  storageBucket: "gen-lang-client-0258122921.firebasestorage.app",
+  messagingSenderId: "850202732445",
+  appId: "1:850202732445:web:aac08a3e53451c3ec2f174"
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -291,7 +302,7 @@ const FIREBASE_CONFIG = {
    · 모두 1:1 정사각형 자동 크롭 · 그림이 없으면 이모지 표시
    ════════════════════════════════════════════════════════════ */
 const IMG_EXT = "png";     /* ← 그림 확장자. jpg 파일이면 "jpg" 로 */
-const CARD_COUNT = 48;     /* ← 카드 장수. 그림을 더/덜 올리면 이 숫자만 바꾸세요 */
+const CARD_COUNT = 34;     /* ← 카드 장수. 그림을 더/덜 올리면 이 숫자만 바꾸세요 */
 /* image (1).png ~ image (48).png 파일을 저장소에 올리면 자동 연결됩니다.
    "image (1)" (띄어쓰기 O), "image(1)" (띄어쓰기 X) 둘 다 알아서 인식해요.
    그림이 아직 없는 카드는 이모지가 대신 표시돼요. */
@@ -440,13 +451,9 @@ function renderBoard(){
     $('spotBox').innerHTML=`
       <div class="spotCard">
         <div class="nowTag">🎤 발표 중</div>
-        <div class="spotTop">
-          ${faceHTML(c)}
-          <div style="flex:1">
-            <div class="spotName">${esc(cur.name)} 선생님</div>
-            <div class="spotDef">"${esc(T)} <b style="color:var(--coral)">${esc(pick.def||'…')}</b>"</div>
-          </div>
-        </div>
+        <div class="spotBig" onclick="openLB('${pick.cardId}')">${faceHTML(c,false)}</div>
+        <div class="spotName">${esc(cur.name)} 선생님 <span style="color:var(--ink-soft);font-size:.75rem">(카드를 누르면 전체화면 🔍)</span></div>
+        <div class="spotDef">"${esc(T)} <b style="color:var(--coral)">${esc(pick.def||'…')}</b>"</div>
         <div class="seedGot">🌱 이번 발표에 받은 씨앗: ${gotN}개</div>
         ${myTurn?`<button class="btn coral" style="margin-top:.8rem" onclick="nextTurn()">발표 끝! 다음 차례로 ▶</button>`:''}
         <div id="floatLayer"></div>
@@ -569,6 +576,11 @@ function giveSeed(){
     roomRef.child('seedEvents').push({to, from:myUid, ts:firebase.database.ServerValue.TIMESTAMP});
     toast("공감 씨앗을 심었어요 🌱");
   });
+}
+function openLB(id){
+  const c=cardById(id); if(!c) return;
+  $('lbInner').innerHTML=faceHTML(c,false);
+  $('lightbox').classList.add('on');
 }
 function spawnFloat(emo){
   const layer=$('floatLayer'); if(!layer) return;

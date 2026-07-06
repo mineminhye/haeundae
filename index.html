@@ -406,8 +406,18 @@ function route(){
 function renderLobby(){
   const uids=Object.keys(members).sort((a,b)=>(members[a].ts||0)-(members[b].ts||0));
   $('lobbyList').innerHTML = uids.length
-    ? uids.map((u,i)=>`${i+1}. <b>${esc(members[u].name)}</b>${u===myUid?' (나)':''}`).join('<br>')
+    ? uids.map((u,i)=>`${i+1}. <b>${esc(members[u].name)}</b>`
+        + (u===myUid
+          ? ` (나) <button onclick="leaveRoom()" style="border:none;background:var(--coral-soft);color:var(--coral);font-family:'Jua';font-size:.75rem;border-radius:999px;padding:.1rem .6rem;cursor:pointer;margin-left:.3rem">나가기 ✖</button>`
+          : '')).join('<br>')
     : '아직 아무도 없어요…';
+}
+function leaveRoom(){
+  if(!confirm("대기실에서 나갈까요? 명단에서 이름이 지워져요.")) return;
+  roomRef.child('members/'+myUid).remove().then(()=>{
+    try{localStorage.removeItem('seed-uid-'+roomName);}catch(e){}
+    location.reload();
+  });
 }
 function startGame(){
   const uids=Object.keys(members).sort((a,b)=>(members[a].ts||0)-(members[b].ts||0));

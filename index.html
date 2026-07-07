@@ -158,6 +158,21 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
 .crown{font-size:1.3rem;}
 .wilt{font-size:.75rem;color:#A88;}
 
+/* ---------- 피날레: 화면 가득 꽃밭 ---------- */
+#finale{position:fixed;inset:0;z-index:300;overflow:hidden;background:rgba(243,245,238,.55);
+  cursor:pointer;animation:fadeIn .4s ease;}
+.fDaisy{position:absolute;animation:bloomIn .55s ease backwards;filter:drop-shadow(0 2px 2px rgba(37,50,31,.12));}
+.fMsg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  background:rgba(255,255,255,.96);border:3px solid var(--amber);border-radius:26px;
+  padding:1.3rem 1.6rem;text-align:center;font-family:'Jua';
+  box-shadow:0 10px 34px rgba(37,50,31,.18);opacity:0;transition:opacity .7s;
+  max-width:86vw;}
+.fMsg.on{opacity:1;}
+.fMsg .top{font-size:.85rem;color:var(--ink-soft);}
+.fMsg .nm{font-size:1.55rem;color:var(--coral);margin:.25rem 0;}
+.fMsg .big{font-size:1.1rem;color:var(--green);}
+.fMsg .hint{font-size:.7rem;color:var(--ink-soft);margin-top:.7rem;opacity:.8;}
+
 /* ---------- 안내/토스트 ---------- */
 .notice{background:#fff;border:2px solid var(--line);border-radius:var(--radius);
   padding:1.2rem;font-size:.88rem;line-height:1.7;}
@@ -210,7 +225,8 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
       · 테이블에 카드 6장, 나머지는 덱에 있어요<br>
       · 자기 차례에 카드 1장을 골라 "(주제)란 ○○이다" 발표!<br>
       · 발표가 끝나면 덱에서 새 카드가 빈자리를 채워요<br>
-      · 모두 <b>공감 씨앗 3개</b> — 한 발표에 1개까지 줄 수 있어요<br>
+      · 모두 <b>공감 씨앗</b>을 받아요 (다른 사람 수의 절반, 예: 7명이면 3개)<br>
+      · 한 발표에 1개까지 줄 수 있어요<br>
       · 일찍 다 쓰면 뒷사람에게 못 주고, 남기면 시들어요!<br>
       · 마지막 <b>꽃 피우기</b>: 받은 씨앗마다 데이지가 1~3송이(랜덤!)<br>
       · 꽃송이가 가장 많은 사람이 우승 🌼
@@ -262,7 +278,8 @@ label.fld{display:block;font-family:'Jua';font-size:.9rem;color:var(--ink-soft);
     <h2 class="title" style="font-size:1.5rem">우리들의 공감 꽃밭</h2>
     <p class="sub">받은 씨앗 하나하나가 데이지로 피었어요. 송이 수는 하늘의 뜻!</p>
     <div id="gardenBox"></div>
-    <button class="btn" onclick="location.reload()" style="margin-top:1rem">처음으로</button>
+    <button class="btn amber" onclick="startFinale()" style="margin-top:1rem">🌼 꽃밭 다시 피우기</button>
+    <button class="btn" onclick="location.reload()" style="margin-top:.6rem">처음으로</button>
   </section>
 </div>
 
@@ -315,7 +332,7 @@ const CARDS=[...Array(CARD_COUNT)].map((_,i)=>({
 }));
 
 const TABLE_SIZE = 6;   /* 처음에 펼쳐지는 카드 수 */
-const SEEDS     = 3;    /* 1인당 공감 씨앗 수 */
+const SEEDS     = 3;    /* 기본 씨앗 수 (게임 시작 시 인원에 따라 자동 조절: 다른 사람 수의 절반) */
 const BLOOM_MIN = 1;    /* 씨앗 하나가 피우는 최소 송이 */
 const BLOOM_MAX = 3;    /* 씨앗 하나가 피우는 최대 송이 */
 
@@ -422,15 +439,21 @@ function leaveRoom(){
 function startGame(){
   const uids=Object.keys(members).sort((a,b)=>(members[a].ts||0)-(members[b].ts||0));
   if(uids.length<2){toast("2명 이상 모여야 시작할 수 있어요!");return;}
+  const seedN=Math.max(1, Math.ceil((uids.length-1)/2)); /* 다른 사람 수의 절반(올림) */
   db.ref('rooms/'+roomName+'/game').transaction(cur=>{
     if(cur && cur.phase && cur.phase!=='lobby') return; /* 이미 시작됨 */
     const ids=shuffle(CARDS.map(c=>c.id));
     const topic=($('inTopic')&&$('inTopic').value.trim())||'평가';
     return {
-      phase:'play', order:uids, turnIdx:0, topic,
+      phase:'play', order:uids, turnIdx:0, topic, seeds:seedN,
       table:ids.slice(0,TABLE_SIZE), deck:ids.slice(TABLE_SIZE),
       pick:null, freshKey:""
     };
+  }).then(res=>{
+    const g=res.snapshot&&res.snapshot.val();
+    if(res.committed && g && g.phase==='play'){
+      uids.forEach(u=>roomRef.child('members/'+u+'/seeds').set(g.seeds));
+    }
   });
 }
 
@@ -507,7 +530,8 @@ function renderBoard(){
   const extra=Object.keys(members).filter(u=>!order.includes(u));
   $('memRow').innerHTML=[...uids,...extra].map(u=>{
     const m=members[u];
-    const seeds='🌱'.repeat(m.seeds||0)+'▫️'.repeat(Math.max(0,SEEDS-(m.seeds||0)));
+    const maxS=(game&&game.seeds)||SEEDS;
+    const seeds='🌱'.repeat(m.seeds||0)+'▫️'.repeat(Math.max(0,maxS-(m.seeds||0)));
     return `<div class="memPill ${u===myUid?'me':''}">
       <div class="nm">${esc(m.name)}${u===myUid?' (나)':''}</div>
       <div class="sd">${seeds}</div>
@@ -616,6 +640,49 @@ function doBloom(){
     return {done:true, results, ts:Date.now()};
   });
 }
+function daisyAt(x,y,size,delay){
+  const sp=document.createElement('span');
+  sp.className='fDaisy';
+  sp.style.cssText=`left:${x}px;top:${y}px;width:${size}px;height:${size}px;animation-delay:${delay}s;transform:rotate(${Math.random()*40-20}deg)`;
+  sp.innerHTML=daisySVG(0).replace('class="daisy"','style="width:100%;height:100%"');
+  return sp;
+}
+function winnersInfo(){
+  const rs=(bloom&&bloom.results)||{};
+  const uids=Object.keys(rs);
+  const top=Math.max(0,...uids.map(u=>rs[u].total));
+  const names=uids.filter(u=>rs[u].total===top&&top>0).map(u=>(members[u]||{}).name||'?');
+  return {top,names};
+}
+function startFinale(){
+  if(document.getElementById('finale')) return;
+  const {top,names}=winnersInfo();
+  if(!names.length){toast("이번엔 핀 꽃이 없어요 🥀");return;}
+  /* 우승자 카드 위치에서 시작 */
+  const winEl=document.querySelector('.garden.win');
+  const r=winEl?winEl.getBoundingClientRect():null;
+  const ox=r ? r.left+r.width/2 : innerWidth/2;
+  const oy=r ? Math.min(Math.max(60,r.top+r.height/2), innerHeight-60) : innerHeight/2;
+  const ov=document.createElement('div'); ov.id='finale';
+  const maxD=Math.hypot(Math.max(ox,innerWidth-ox),Math.max(oy,innerHeight-oy));
+  const N=90;
+  for(let i=0;i<N;i++){
+    const x=Math.random()*innerWidth, y=Math.random()*innerHeight;
+    const d=Math.hypot(x-ox,y-oy)/maxD;              /* 우승자 자리에서 멀수록 늦게 */
+    const size=26+Math.random()*30;
+    ov.appendChild(daisyAt(x-size/2,y-size/2,size,0.15+d*2.1+Math.random()*0.15));
+  }
+  const msg=document.createElement('div');
+  msg.className='fMsg';
+  msg.innerHTML=`<div class="top">🌼 공감의 꽃밭이 완성되었어요 🌼</div>
+    <div class="nm">${names.map(esc).join(', ')} 선생님</div>
+    <div class="big">모두에게 ${top}송이의 꽃밭을 선물했습니다. 축하합니다! 💐</div>
+    <div class="hint">화면을 누르면 닫혀요</div>`;
+  ov.appendChild(msg);
+  ov.onclick=()=>ov.remove();
+  document.body.appendChild(ov);
+  setTimeout(()=>msg.classList.add('on'),2400);
+}
 function renderGarden(){
   if(!bloom || !bloom.results) return;
   const rs=bloom.results;
@@ -634,6 +701,10 @@ function renderGarden(){
       <div class="daisyBed">${daisies||'<span style="font-size:.8rem;color:var(--ink-soft)">이번엔 꽃이 없네요…</span>'}</div>
     </div>`;
   }).join('');
+  if(!window._finaleDone){
+    window._finaleDone=true;
+    setTimeout(startFinale, delay*1000+1200);  /* 개인 꽃이 다 핀 뒤 꽃밭 피날레 */
+  }
 }
 
 /* ---------- 방 초기화 ---------- */
